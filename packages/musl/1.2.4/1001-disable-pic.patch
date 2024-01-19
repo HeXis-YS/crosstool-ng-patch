@@ -1,0 +1,22 @@
+diff --git a/Makefile b/Makefile
+index e8cc4436..be5040d3 100644
+--- a/Makefile
++++ b/Makefile
+@@ -113,7 +113,7 @@ obj/crt/crt1.o obj/crt/scrt1.o obj/crt/rcrt1.o obj/ldso/dlstart.lo: $(srcdir)/ar
+ 
+ obj/crt/rcrt1.o: $(srcdir)/ldso/dlstart.c
+ 
+-obj/crt/Scrt1.o obj/crt/rcrt1.o: CFLAGS_ALL += -fPIC
++# obj/crt/Scrt1.o obj/crt/rcrt1.o: CFLAGS_ALL += -fPIC
+ 
+ OPTIMIZE_SRCS = $(wildcard $(OPTIMIZE_GLOBS:%=$(srcdir)/src/%))
+ $(OPTIMIZE_SRCS:$(srcdir)/%.c=obj/%.o) $(OPTIMIZE_SRCS:$(srcdir)/%.c=obj/%.lo): CFLAGS += -O3
+@@ -129,7 +129,7 @@ $(NOSSP_OBJS) $(NOSSP_OBJS:%.o=%.lo): CFLAGS_ALL += $(CFLAGS_NOSSP)
+ 
+ $(CRT_OBJS): CFLAGS_ALL += -DCRT
+ 
+-$(LOBJS) $(LDSO_OBJS): CFLAGS_ALL += -fPIC
++# $(LOBJS) $(LDSO_OBJS): CFLAGS_ALL += -fPIC
+ 
+ CC_CMD = $(CC) $(CFLAGS_ALL) -c -o $@ $<
+ 
