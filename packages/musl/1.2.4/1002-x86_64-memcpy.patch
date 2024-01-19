@@ -1,8 +1,9 @@
-diff --git a/src/string/x86_64/memcpy.s b/src/string/x86_64/memcpy.s
-index 3d960efa..c972b677 100644
---- a/src/string/x86_64/memcpy.s
-+++ b/src/string/x86_64/memcpy.s
-@@ -1,3 +1,463 @@
+diff --git a/src/string/x86_64/memcpy.S b/src/string/x86_64/memcpy.S
+new file mode 100644
+index 0000000..68243a3
+--- /dev/null
++++ b/src/string/x86_64/memcpy.S
+@@ -0,0 +1,491 @@
 +/*
 + * Copyright (c) Meta Platforms, Inc. and affiliates.
 + *
@@ -350,8 +351,10 @@ index 3d960efa..c972b677 100644
 +.L_OVERLAP:
 +        .align      2
 +        cmp         %rdi, %rsi
-+        jb          .L_OVERLAP_BWD  // %rsi  < %rdi => backward-copy
-+        je          .L_RET          // %rsi == %rdi => return, nothing to copy
++        jb          .L_OVERLAP_BWD
++        // %rsi  < %rdi => backward-copy
++        je          .L_RET
++        // %rsi == %rdi => return, nothing to copy
 +
 +        // Source & destination buffers overlap. Forward copy.
 +
@@ -397,7 +400,8 @@ index 3d960efa..c972b677 100644
 +        vmovdqu     %ymm5,  -96(%rdi,%rdx)
 +        vmovdqu     %ymm6,  -64(%rdi,%rdx)
 +        vmovdqu     %ymm7,  -32(%rdi,%rdx)
-+        vmovdqu     %ymm8, (%rax)  // %rax == the original (unaligned) %rdi
++        vmovdqu     %ymm8, (%rax)
++        // %rax == the original (unaligned) %rdi
 +
 +        vzeroupper
 +
@@ -442,7 +446,8 @@ index 3d960efa..c972b677 100644
 +        cmp         %r8, %rsi
 +        ja          .L_OVERLAP_BWD_ALIGNED_DST_LOOP
 +
-+        vmovdqu     %ymm0,   (%rax)  // %rax == the original unaligned %rdi
++        vmovdqu     %ymm0,   (%rax)
++        // %rax == the original unaligned %rdi
 +        vmovdqu     %ymm1, 32(%rax)
 +        vmovdqu     %ymm2, 64(%rax)
 +        vmovdqu     %ymm3, 96(%rax)
@@ -463,39 +468,120 @@ index 3d960efa..c972b677 100644
 +#else
 +// original musl implementation
 +
- .global memcpy
- .global __memcpy_fwd
- .hidden __memcpy_fwd
-@@ -23,3 +483,5 @@ __memcpy_fwd:
- 	dec %edx
- 	jnz 2b
- 1:	ret
++.global memcpy
++.global __memcpy_fwd
++.hidden __memcpy_fwd
++.type memcpy,@function
++memcpy:
++__memcpy_fwd:
++	mov %rdi,%rax
++	cmp $8,%rdx
++	jc 1f
++	test $7,%edi
++	jz 1f
++2:	movsb
++	dec %rdx
++	test $7,%edi
++	jnz 2b
++1:	mov %rdx,%rcx
++	shr $3,%rcx
++	rep
++	movsq
++	and $7,%edx
++	jz 1f
++2:	movsb
++	dec %edx
++	jnz 2b
++1:	ret
 +
 +#endif
-\ No newline at end of file
-diff --git a/src/string/x86_64/memmove.s b/src/string/x86_64/memmove.s
-index 172c0252..be31d75f 100644
---- a/src/string/x86_64/memmove.s
-+++ b/src/string/x86_64/memmove.s
-@@ -1,3 +1,7 @@
+diff --git a/src/string/x86_64/memcpy.s b/src/string/x86_64/memcpy.s
+deleted file mode 100644
+index 3d960ef..0000000
+--- a/src/string/x86_64/memcpy.s
++++ /dev/null
+@@ -1,25 +0,0 @@
+-.global memcpy
+-.global __memcpy_fwd
+-.hidden __memcpy_fwd
+-.type memcpy,@function
+-memcpy:
+-__memcpy_fwd:
+-	mov %rdi,%rax
+-	cmp $8,%rdx
+-	jc 1f
+-	test $7,%edi
+-	jz 1f
+-2:	movsb
+-	dec %rdx
+-	test $7,%edi
+-	jnz 2b
+-1:	mov %rdx,%rcx
+-	shr $3,%rcx
+-	rep
+-	movsq
+-	and $7,%edx
+-	jz 1f
+-2:	movsb
+-	dec %edx
+-	jnz 2b
+-1:	ret
+diff --git a/src/string/x86_64/memmove.S b/src/string/x86_64/memmove.S
+new file mode 100644
+index 0000000..be31d75
+--- /dev/null
++++ b/src/string/x86_64/memmove.S
+@@ -0,0 +1,21 @@
 +
 +#if defined(__AVX2__)
 +// implemented as memcpy
 +#else
- .global memmove
- .type memmove,@function
- memmove:
-@@ -14,3 +18,4 @@ memmove:
- 	cld
- 	lea 1(%rdi),%rax
- 	ret
++.global memmove
++.type memmove,@function
++memmove:
++	mov %rdi,%rax
++	sub %rsi,%rax
++	cmp %rdx,%rax
++.hidden __memcpy_fwd
++	jae __memcpy_fwd
++	mov %rdx,%rcx
++	lea -1(%rdi,%rdx),%rdi
++	lea -1(%rsi,%rdx),%rsi
++	std
++	rep movsb
++	cld
++	lea 1(%rdi),%rax
++	ret
 +#endif
 \ No newline at end of file
-diff --git a/src/string/x86_64/memset.s b/src/string/x86_64/memset.s
-index 2d3f5e52..a42ac3fd 100644
---- a/src/string/x86_64/memset.s
-+++ b/src/string/x86_64/memset.s
-@@ -1,3 +1,245 @@
+diff --git a/src/string/x86_64/memmove.s b/src/string/x86_64/memmove.s
+deleted file mode 100644
+index 172c025..0000000
+--- a/src/string/x86_64/memmove.s
++++ /dev/null
+@@ -1,16 +0,0 @@
+-.global memmove
+-.type memmove,@function
+-memmove:
+-	mov %rdi,%rax
+-	sub %rsi,%rax
+-	cmp %rdx,%rax
+-.hidden __memcpy_fwd
+-	jae __memcpy_fwd
+-	mov %rdx,%rcx
+-	lea -1(%rdi,%rdx),%rdi
+-	lea -1(%rsi,%rdx),%rsi
+-	std
+-	rep movsb
+-	cld
+-	lea 1(%rdi),%rax
+-	ret
+diff --git a/src/string/x86_64/memset.S b/src/string/x86_64/memset.S
+new file mode 100644
+index 0000000..a42ac3f
+--- /dev/null
++++ b/src/string/x86_64/memset.S
+@@ -0,0 +1,316 @@
 +/*
 + * Copyright (c) Facebook, Inc. and its affiliates.
 + *
@@ -738,13 +824,156 @@ index 2d3f5e52..a42ac3fd 100644
 +#else
 +// original musl implementation
 +
- .global memset
- .type memset,@function
- memset:
-@@ -70,3 +312,5 @@ memset:
- 	sub %rdx,%rcx
- 	add %rdx,%rdi
- 	jmp 1b
++.global memset
++.type memset,@function
++memset:
++	movzbq %sil,%rax
++	mov $0x101010101010101,%r8
++	imul %r8,%rax
++
++	cmp $126,%rdx
++	ja 2f
++
++	test %edx,%edx
++	jz 1f
++
++	mov %sil,(%rdi)
++	mov %sil,-1(%rdi,%rdx)
++	cmp $2,%edx
++	jbe 1f
++
++	mov %ax,1(%rdi)
++	mov %ax,(-1-2)(%rdi,%rdx)
++	cmp $6,%edx
++	jbe 1f
++
++	mov %eax,(1+2)(%rdi)
++	mov %eax,(-1-2-4)(%rdi,%rdx)
++	cmp $14,%edx
++	jbe 1f
++
++	mov %rax,(1+2+4)(%rdi)
++	mov %rax,(-1-2-4-8)(%rdi,%rdx)
++	cmp $30,%edx
++	jbe 1f
++
++	mov %rax,(1+2+4+8)(%rdi)
++	mov %rax,(1+2+4+8+8)(%rdi)
++	mov %rax,(-1-2-4-8-16)(%rdi,%rdx)
++	mov %rax,(-1-2-4-8-8)(%rdi,%rdx)
++	cmp $62,%edx
++	jbe 1f
++
++	mov %rax,(1+2+4+8+16)(%rdi)
++	mov %rax,(1+2+4+8+16+8)(%rdi)
++	mov %rax,(1+2+4+8+16+16)(%rdi)
++	mov %rax,(1+2+4+8+16+24)(%rdi)
++	mov %rax,(-1-2-4-8-16-32)(%rdi,%rdx)
++	mov %rax,(-1-2-4-8-16-24)(%rdi,%rdx)
++	mov %rax,(-1-2-4-8-16-16)(%rdi,%rdx)
++	mov %rax,(-1-2-4-8-16-8)(%rdi,%rdx)
++
++1:	mov %rdi,%rax
++	ret
++
++2:	test $15,%edi
++	mov %rdi,%r8
++	mov %rax,-8(%rdi,%rdx)
++	mov %rdx,%rcx
++	jnz 2f
++
++1:	shr $3,%rcx
++	rep
++	stosq
++	mov %r8,%rax
++	ret
++
++2:	xor %edx,%edx
++	sub %edi,%edx
++	and $15,%edx
++	mov %rax,(%rdi)
++	mov %rax,8(%rdi)
++	sub %rdx,%rcx
++	add %rdx,%rdi
++	jmp 1b
 +
 +#endif // __AVX2__
 \ No newline at end of file
+diff --git a/src/string/x86_64/memset.s b/src/string/x86_64/memset.s
+deleted file mode 100644
+index 2d3f5e5..0000000
+--- a/src/string/x86_64/memset.s
++++ /dev/null
+@@ -1,72 +0,0 @@
+-.global memset
+-.type memset,@function
+-memset:
+-	movzbq %sil,%rax
+-	mov $0x101010101010101,%r8
+-	imul %r8,%rax
+-
+-	cmp $126,%rdx
+-	ja 2f
+-
+-	test %edx,%edx
+-	jz 1f
+-
+-	mov %sil,(%rdi)
+-	mov %sil,-1(%rdi,%rdx)
+-	cmp $2,%edx
+-	jbe 1f
+-
+-	mov %ax,1(%rdi)
+-	mov %ax,(-1-2)(%rdi,%rdx)
+-	cmp $6,%edx
+-	jbe 1f
+-
+-	mov %eax,(1+2)(%rdi)
+-	mov %eax,(-1-2-4)(%rdi,%rdx)
+-	cmp $14,%edx
+-	jbe 1f
+-
+-	mov %rax,(1+2+4)(%rdi)
+-	mov %rax,(-1-2-4-8)(%rdi,%rdx)
+-	cmp $30,%edx
+-	jbe 1f
+-
+-	mov %rax,(1+2+4+8)(%rdi)
+-	mov %rax,(1+2+4+8+8)(%rdi)
+-	mov %rax,(-1-2-4-8-16)(%rdi,%rdx)
+-	mov %rax,(-1-2-4-8-8)(%rdi,%rdx)
+-	cmp $62,%edx
+-	jbe 1f
+-
+-	mov %rax,(1+2+4+8+16)(%rdi)
+-	mov %rax,(1+2+4+8+16+8)(%rdi)
+-	mov %rax,(1+2+4+8+16+16)(%rdi)
+-	mov %rax,(1+2+4+8+16+24)(%rdi)
+-	mov %rax,(-1-2-4-8-16-32)(%rdi,%rdx)
+-	mov %rax,(-1-2-4-8-16-24)(%rdi,%rdx)
+-	mov %rax,(-1-2-4-8-16-16)(%rdi,%rdx)
+-	mov %rax,(-1-2-4-8-16-8)(%rdi,%rdx)
+-
+-1:	mov %rdi,%rax
+-	ret
+-
+-2:	test $15,%edi
+-	mov %rdi,%r8
+-	mov %rax,-8(%rdi,%rdx)
+-	mov %rdx,%rcx
+-	jnz 2f
+-
+-1:	shr $3,%rcx
+-	rep
+-	stosq
+-	mov %r8,%rax
+-	ret
+-
+-2:	xor %edx,%edx
+-	sub %edi,%edx
+-	and $15,%edx
+-	mov %rax,(%rdi)
+-	mov %rax,8(%rdi)
+-	sub %rdx,%rcx
+-	add %rdx,%rdi
+-	jmp 1b
